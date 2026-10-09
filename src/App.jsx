@@ -63,9 +63,11 @@ function App() {
             {result.predictions.map((item, i) => <article className="finding" key={i}><div className="finding-label">POSSIBLE REVIEW CONCERN <span>{item.confidence || 'evidence-based'}</span></div><p className="concern">{item.concern}</p>{item.file && <div className="file">↳ {item.file}</div>}<div className="evidence"><small>WHY IT WAS FLAGGED · PAST REVIEW</small><p>“{item.concern}”</p><a href={item.evidence_url} target="_blank" rel="noreferrer">Evidence: {result.repo} PR #{item.evidence_pr} ↗</a></div></article>)}
             {!result.predictions.length && <div className="no-findings">MergeReady stayed quiet because it found no relevant, evidence-backed concern in the retrieved history.</div>}
             <div className="disclaimer">This is a rehearsal suggestion, not a guarantee. Confirm whether the historical feedback applies to your code.</div>
+            {result.related_prs?.length > 0 && <div className="related"><h3>Similar past changes</h3>{result.related_prs.map(pr => <a key={pr.number} href={pr.url} target="_blank" rel="noreferrer"><b>PR #{pr.number}</b><span>{pr.title}</span><small>{pr.review_count} review comments · {pr.files.join(", ")}</small></a>)}</div>}
           </div>}
         </section>
       </div>
+      <section className="scope"><div className="scope-title"><span>PROTOTYPE SCOPE</span><h2>What works now — and what comes next</h2><p>We show the current implementation honestly; roadmap items are not presented as completed.</p></div><div className="scope-grid"><article><b><i>LIVE</i> Working in this demo</b><p>Paste a code change · retrieve similar public PR comments · Qwen selects evidence · verify PR citations · chronological replay</p></article><article><b><i className="planned">NEXT</i> Planned, not implemented</b><p>GitHub sign-in/private repos · learned reviewer fingerprints · inline line-level fixes · outcome/impact tracking · measured precision/recall · model comparison and routing</p></article></div></section>
       <footer><span>MERGEREADY</span><span>Qwen selects from retrieved review evidence. Citations are verified before display.</span><span>LOCAL INFERENCE</span></footer>
     </main>
   </div>

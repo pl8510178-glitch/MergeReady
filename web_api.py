@@ -51,6 +51,12 @@ class Handler(BaseHTTPRequestHandler):
             result["history_prs"] = len(load_all(repo))
             for item in result.get("predictions", []):
                 item["evidence_url"] = f"https://github.com/{repo}/pull/{item['evidence_pr']}"
+            result["related_prs"] = [
+                {"number": pr["number"], "title": pr["title"],
+                 "url": pr.get("url") or f"https://github.com/{repo}/pull/{pr['number']}",
+                 "files": pr["files"][:3], "review_count": len(pr["comments"])}
+                for pr in examples
+            ]
             self.send_json(200, result)
         except Exception as exc:
             self.send_json(500, {"error": f"Review failed: {type(exc).__name__}: {exc}"})
