@@ -1,42 +1,56 @@
 # MergeReady
 
-MergeReady is a contributor-side pull request rehearsal tool. It learns from public pull request reviews, retrieves similar historical comments, and uses a local open-weight Qwen model to select which past concerns deserve attention for a new change. Every displayed concern links to a real evidence PR and is checked by a verifier.
+MergeReady is a contributor-side pull request rehearsal tool. Paste a code change, and Qwen selects relevant comments from similar past reviews in the repository. MergeReady verifies that every displayed concern cites a retrieved historical PR.
 
-## What is original here
+## What the demo does
 
-- **Contributor-side rehearsal:** surfaces likely review concerns before a PR is submitted.
-- **Evidence-only model output:** Qwen selects from retrieved historical review comments; it cannot cite a PR outside the retrieved evidence. If local inference is unavailable, a transparent lexical retrieval fallback runs instead.
-- **Chronological replay:** hides later PRs from earlier evidence and saves predictions for manual review. The current replay is a small prototype, not a validated accuracy claim.
+1. Retrieves similar reviewed PRs from a local SQLite history using file-path and text overlap.
+2. Sends the proposed change and retrieved review comments to a local open-weight Qwen model.
+3. Qwen selects relevant past comments; an evidence verifier rejects citations outside the retrieved PRs.
+4. Displays each concern with the source PR link.
 
-## Run on Windows
+Qwen is doing the relevance selection. If the local model is unavailable, the interface labels the result as an evidence-only fallback. The project also supports chronological replay for manual evaluation; it does not claim a verified accuracy score.
 
-Requirements: Python 3.11+ and Bionic with a downloaded Qwen model. The tested model identifier is `qwen3.5-0.8b`.
+## Run the browser demo on Windows
 
-1. Create the environment and install Python packages in the project folder:
+Requirements: Python 3.11+, Node.js, Bionic with a downloaded Qwen model, and the PR history database.
 
-       py -3 -m venv .venv
-       .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Install Python dependencies once:
 
-2. Load Qwen in Bionic. Enable **Settings → Local Model API**, or start the local server from PowerShell:
+    py -3 -m venv .venv
+    .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+    npm install
 
-       lms server start --port 1234
+In Bionic, load Qwen and start the local API:
 
-The app connects to `http://localhost:1234/v1`. To override it, set `LM_STUDIO_BASE_URL` in a local `.env` file. Keep the API bound to localhost.
+    lms server start --port 1234
 
-3. Fetch some public PR history (GitHub may rate-limit unauthenticated requests; if that happens, add a read-only public-repository token to a local `.env` file as `GITHUB_TOKEN=your_token`; never commit `.env`):
+Keep that terminal open. In a second VS Code terminal, start the MergeReady API:
 
-       .\.venv\Scripts\python.exe app.py fetch pallets/flask --limit 10
+    .\.venv\Scripts\python.exe web_api.py
 
-4. Rehearse a change with Qwen:
+Keep it open. In a third terminal, start the browser interface:
 
-       .\.venv\Scripts\python.exe app.py rehearse --repo pallets/flask --title "Improve request handling" --description "Add tests for request validation and handling"
+    npm run dev -- --port 5174
 
-5. Replay held-out PRs using only older evidence:
+Open http://127.0.0.1:5174, choose Load working sample, and click Review my change with Qwen. Or replace the sample with your own repository, file path, title, description, and code or diff.
 
-       .\.venv\Scripts\python.exe app.py evaluate --repo pallets/flask --holdout 5
+## Fetch repository history
 
-Results are saved under `outputs/`. Inspect `outputs/replay.json` and confirm each citation before presenting. Small repositories or a small fetched sample may produce very limited evaluation results; do not present the heuristic/manual replay as a verified accuracy score.
+The browser demo uses local history. Fetch public PR history once:
+
+    .\.venv\Scripts\python.exe app.py fetch pallets/flask --limit 10
+
+GitHub may rate-limit unauthenticated requests. If needed, add a read-only public-repository token to a local .env file as GITHUB_TOKEN=your_token. Never commit .env.
+
+## Replay evaluation
+
+Replay eligible historical PRs while retrieving evidence only from earlier PRs:
+
+    .\.venv\Scripts\python.exe app.py evaluate --repo pallets/flask --holdout 5
+
+Results are saved to outputs/replay.json. The current sample is small; manually inspect predictions and citations. Do not present the replay as a validated accuracy benchmark.
 
 ## Privacy and limitations
 
-Inference runs locally through Bionic. The CLI sends the change and retrieved public review examples to the local API on your machine. `.env`, the local SQLite database, and `outputs/` are excluded from Git. A local GitHub token is optional and must never be committed.
+Inference is local through Bionic at http://localhost:1234/v1. The browser talks to a local Python API bound to 127.0.0.1; source code is not sent to GitHub or a hosted model. MergeReady does not write to GitHub. .env, the local SQLite database, and generated outputs/ are excluded from Git.
