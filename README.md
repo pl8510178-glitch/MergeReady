@@ -1,56 +1,42 @@
 # MergeReady
 
-A contributor-side pull request rehearsal tool. It retrieves similar past reviews, asks a local open-weight model for likely concerns, and drops any prediction whose cited example PR is not in the retrieved evidence.
+MergeReady is a contributor-side pull request rehearsal tool. It learns from public pull request reviews, retrieves similar historical comments, and uses a local open-weight Qwen model to select which past concerns deserve attention for a new change. Every displayed concern links to a real evidence PR and is checked by a verifier.
 
-## Current prototype
+## What is original here
 
-This first version is a command-line research prototype. It fetches public merged PRs, stores them in SQLite, ranks historical examples using changed-path and text overlap, queries a local LM Studio/Bionic-compatible API, verifies evidence PR numbers, and saves replay output. It deliberately does not claim an automatic accuracy score; held-out predictions are saved for review.
+- **Contributor-side rehearsal:** surfaces likely review concerns before a PR is submitted.
+- **Evidence-only model output:** Qwen selects from retrieved historical review comments; it cannot cite a PR outside the retrieved evidence. If local inference is unavailable, a transparent lexical retrieval fallback runs instead.
+- **Chronological replay:** hides later PRs from earlier evidence and saves predictions for manual review. The current replay is a small prototype, not a validated accuracy claim.
 
-Model for the demo: **Qwen3 4B, 4-bit quantization** (or a smaller Qwen model if the laptop cannot load it).
+## Run on Windows
 
-## Setup
+Requirements: Python 3.11+ and Bionic with a downloaded Qwen model. The tested model identifier is `qwen3.5-0.8b`.
 
-1. Install Python 3.11 or newer.
-2. In Bionic, download a local Qwen model, load it in a session, then enable **Settings → Local Model API**. The local API is expected at `http://localhost:1234/v1`.
-3. Open a terminal in this folder and run:
+1. Create the environment and install Python packages in the project folder:
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
+       py -3 -m venv .venv
+       .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 
-4. Optional: create a GitHub fine-grained token with read access and place it in a local `.env` file:
+2. Load Qwen in Bionic. Enable **Settings → Local Model API**, or start the local server from PowerShell:
 
-```text
-GITHUB_TOKEN=put_your_token_here
-```
+       lms server start --port 1234
 
-Never commit `.env`. Public repositories can be fetched without a token, but unauthenticated requests have lower limits.
+The app connects to `http://localhost:1234/v1`. To override it, set `LM_STUDIO_BASE_URL` in a local `.env` file. Keep the API bound to localhost.
 
-## Run
+3. Fetch some public PR history (GitHub may rate-limit unauthenticated requests; if that happens, add a read-only public-repository token to a local `.env` file as `GITHUB_TOKEN=your_token`; never commit `.env`):
 
-Fetch 30 recent merged pull requests (this may use several GitHub API calls per PR):
+       .\.venv\Scripts\python.exe app.py fetch pallets/flask --limit 10
 
-```powershell
-python app.py fetch pallets/flask --limit 30
-```
+4. Rehearse a change with Qwen:
 
-Rehearse a diff saved as a text file. Put changed file paths on lines beginning with `File: `.
+       .\.venv\Scripts\python.exe app.py rehearse --repo pallets/flask --title "Improve request handling" --description "Add tests for request validation and handling"
 
-```powershell
-python app.py rehearse --repo pallets/flask --title "Handle empty booking response" --diff-file sample.diff
-```
+5. Replay held-out PRs using only older evidence:
 
-Replay the newest five PRs. Each test PR is excluded from its own evidence set, and only PRs created earlier are retrieved:
+       .\.venv\Scripts\python.exe app.py evaluate --repo pallets/flask --holdout 5
 
-```powershell
-python app.py evaluate --repo pallets/flask --holdout 5
-```
+Results are saved under `outputs/`. Inspect `outputs/replay.json` and confirm each citation before presenting. Small repositories or a small fetched sample may produce very limited evaluation results; do not present the heuristic/manual replay as a verified accuracy score.
 
-Results are written to `outputs/latest_prediction.json` and `outputs/replay.json`. Check every prediction's linked PR before presenting it. The replay file is not an accuracy score; manually compare predictions with the hidden review comments before reporting precision or recall.
+## Privacy and limitations
 
-## Data and privacy
-
-Only public GitHub PR history is fetched. Model inference is local when using Bionic's local model API. The SQLite database and output files stay on your machine and are ignored by Git.
-
+Inference runs locally through Bionic. The CLI sends the change and retrieved public review examples to the local API on your machine. `.env`, the local SQLite database, and `outputs/` are excluded from Git. A local GitHub token is optional and must never be committed.

@@ -22,7 +22,7 @@ def get_json(url, params=None):
 def fetch_repo(repo, limit=30):
     owner, name = repo.split("/", 1)
     pulls = get_json(f"{API}/repos/{owner}/{name}/pulls",
-                     {"state": "closed", "sort": "created", "direction": "desc", "per_page": min(limit * 3, 100)})
+                     {"state": "closed", "sort": "created", "direction": "desc", "per_page": 100})
     merged = [p for p in pulls if p.get("merged_at")][:limit]
     results = []
     for index, p in enumerate(merged, 1):
@@ -31,6 +31,7 @@ def fetch_repo(repo, limit=30):
         files = get_json(f"{base}/pulls/{number}/files", {"per_page": 100})
         inline = get_json(f"{base}/pulls/{number}/comments", {"per_page": 100})
         reviews = get_json(f"{base}/pulls/{number}/reviews", {"per_page": 100})
+        discussion = get_json(f"{base}/issues/{number}/comments", {"per_page": 100})
         comments = []
         for c in inline:
             if c.get("body", "").strip():
@@ -42,6 +43,11 @@ def fetch_repo(repo, limit=30):
             author = c.get("user", {}).get("login", "")
             if body and author != p.get("user", {}).get("login"):
                 comments.append({"author": author, "path": "", "line": None, "body": body, "kind": "review"})
+        for c in discussion:
+            body = (c.get("body") or "").strip()
+            author = c.get("user", {}).get("login", "")
+            if body and author != p.get("user", {}).get("login"):
+                comments.append({"author": author, "path": "", "line": None, "body": body, "kind": "discussion"})
         results.append({
             "number": number, "title": p.get("title", ""), "body": p.get("body") or "",
             "created_at": p.get("created_at", ""), "merged_at": p.get("merged_at", ""),
